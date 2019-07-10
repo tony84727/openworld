@@ -5,3 +5,4 @@ authors = ["tony84727 <tony84727@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+glium = "*"
