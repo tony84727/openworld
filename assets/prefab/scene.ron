@@ -1,0 +1,22 @@
+#![enable(implicit_some)]
+
+Prefab(
+    entities: [
+        (
+            data: (
+                graphics: (
+                    mesh: Shape((
+                        shape: Cube,
+                    )),
+                    material: (
+                        albedo: Generate(Srgba(0.0, 0.0, 1.0, 1.0)),
+                    ),
+                ),
+                transform: (
+                    translation: (0.0, 0.0, -5.0),
+                    scale: (2.0, 2.0, 2.0),
+                ),
+            ),
+        ),
+    ],
+)
