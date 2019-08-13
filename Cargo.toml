@@ -5,10 +5,9 @@ authors = ["tony84727 <tony84727@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-winit = "*"
+amethyst = {git="https://github.com/amethyst/amethyst.git"}
+shred = {version = "*", features = ["nightly"]}
 
-[target.'cfg(target_os = "macos")'.dependencies]
-amethyst = {git="https://github.com/amethyst/amethyst.git", default_features =false, features = ["metal"]}
-
-[target.'cfg(not(target_os = "macos"))'.dependencies]
-amethyst = {git="https://github.com/amethyst/amethyst.git", default_features = false, features = ["vulkan"]}
+[features]
+vulkan = ["amethyst/vulkan"]
+metal = ["amethyst/metal"]
