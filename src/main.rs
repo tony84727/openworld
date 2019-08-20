@@ -1,8 +1,8 @@
 use amethyst::{
     assets::{PrefabLoader, PrefabLoaderSystemDesc, RonFormat},
-    controls::{FlyControlBundle, FlyControlTag},
+    controls::{FlyControlBundle, FlyControlTag, HideCursor},
     core::transform::{Transform, TransformBundle},
-    input::{InputBundle, StringBindings},
+    input::{is_key_down, is_mouse_button_down, InputBundle, StringBindings, VirtualKeyCode},
     prelude::*,
     renderer::{
         rendy::mesh::{Normal, Position, TexCoord},
@@ -11,6 +11,8 @@ use amethyst::{
     },
     utils::{application_root_dir, scene::BasicScenePrefab},
 };
+
+use winit::MouseButton;
 
 struct InWorld;
 
@@ -29,6 +31,46 @@ impl SimpleState for InWorld {
             loader.load("prefab/scene.ron", RonFormat, ())
         });
         world.create_entity().with(handle).build();
+    }
+
+    fn on_pause(&mut self, data: StateData<'_, GameData<'_, '_>>) {
+        let mut cursor = data.world.write_resource::<HideCursor>();
+        cursor.hide = false;
+    }
+
+    fn on_resume(&mut self, data: StateData<'_, GameData<'_, '_>>) {
+        let mut cursor = data.world.write_resource::<HideCursor>();
+        cursor.hide = true;
+    }
+
+    fn handle_event(
+        &mut self,
+        _data: StateData<'_, GameData<'_, '_>>,
+        event: StateEvent,
+    ) -> SimpleTrans {
+        if let StateEvent::Window(event) = event {
+            if is_key_down(&event, VirtualKeyCode::Escape) {
+                return Trans::Push(Box::new(PauseState));
+            }
+        }
+        Trans::None
+    }
+}
+
+struct PauseState;
+
+impl SimpleState for PauseState {
+    fn handle_event(
+        &mut self,
+        _data: StateData<'_, GameData<'_, '_>>,
+        event: StateEvent,
+    ) -> SimpleTrans {
+        if let StateEvent::Window(event) = event {
+            if is_mouse_button_down(&event, MouseButton::Left) {
+                return Trans::Pop;
+            }
+        }
+        Trans::None
     }
 }
 
