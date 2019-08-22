@@ -12,6 +12,8 @@ use amethyst::{
     utils::{application_root_dir, scene::BasicScenePrefab},
 };
 
+mod physics;
+
 use winit::MouseButton;
 
 struct InWorld;
