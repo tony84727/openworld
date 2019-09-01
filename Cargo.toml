@@ -7,6 +7,10 @@ edition = "2018"
 [dependencies]
 amethyst = {git="https://github.com/amethyst/amethyst.git"}
 winit = "*"
+nphysics3d = "0.12.3"
+ncollide3d = "^0.20.0"
+nalgebra = "*"
+serde = {version ="^1.0", features = ["derive"]}
 
 [features]
 vulkan = ["amethyst/vulkan"]

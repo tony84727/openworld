@@ -1,18 +1,21 @@
 use amethyst::{
     assets::{PrefabLoader, PrefabLoaderSystemDesc, RonFormat},
-    controls::{FlyControlBundle, FlyControlTag, HideCursor},
+    controls::HideCursor,
     core::transform::{Transform, TransformBundle},
     input::{is_key_down, is_mouse_button_down, InputBundle, StringBindings, VirtualKeyCode},
     prelude::*,
     renderer::{
-        rendy::mesh::{Normal, Position, TexCoord},
-        types::DefaultBackend,
-        Camera, RenderFlat3D, RenderSkybox, RenderToWindow, RenderingBundle,
+        types::DefaultBackend, Camera, RenderFlat3D, RenderSkybox, RenderToWindow, RenderingBundle,
     },
-    utils::{application_root_dir, scene::BasicScenePrefab},
+    utils::application_root_dir,
 };
-
 use winit::MouseButton;
+
+use crate::physics::{ForceTag, RigidBody};
+use crate::prefab::ScenePrefabData;
+
+mod physics;
+mod prefab;
 
 struct InWorld;
 
@@ -23,9 +26,10 @@ impl SimpleState for InWorld {
         world
             .create_entity()
             .named("Camera")
+            .with(RigidBody { size: 2.0 })
             .with(Transform::default())
-            .with(FlyControlTag)
             .with(camera)
+            .with(ForceTag)
             .build();
         let handle = world.exec(|loader: PrefabLoader<'_, ScenePrefabData>| {
             loader.load("prefab/scene.ron", RonFormat, ())
@@ -74,8 +78,6 @@ impl SimpleState for PauseState {
     }
 }
 
-type ScenePrefabData = BasicScenePrefab<(Vec<Position>, Vec<Normal>, Vec<TexCoord>)>;
-
 fn main() -> amethyst::Result<()> {
     amethyst::start_logger(Default::default());
     let app_root = application_root_dir()?;
@@ -100,16 +102,10 @@ fn main() -> amethyst::Result<()> {
                 .with_plugin(RenderSkybox::default())
                 .with_plugin(RenderFlat3D::default()),
         )?
-        .with_bundle(
-            FlyControlBundle::<StringBindings>::new(
-                Some(String::from("horizontal")),
-                None,
-                Some(String::from("vertical")),
-            )
-            .with_sensitivity(0.1, 0.1)
-            .with_speed(4.0),
-        )?
-        .with_bundle(TransformBundle::new().with_dep(&["fly_movement"]))?;
+        .with(physics::PhysicsWorldSystem, "", &[])
+        .with(physics::NPhysicsSystem, "physics", &[])
+        .with(physics::PlayerForceSystem, "", &[])
+        .with_bundle(TransformBundle::new())?;
     let mut game = Application::new(asset_dir, InWorld, game_data)?;
     game.run();
     Ok(())
