@@ -106,6 +106,7 @@ fn main() -> amethyst::Result<()> {
         .with(physics::PhysicsWorldSystem, "", &[])
         .with(physics::NPhysicsSystem, "physics", &[])
         .with(physics::PlayerForceSystem, "", &[])
+        .with(terra::RandomCubeTerra::new(), "", &["physics"])
         .with_bundle(TransformBundle::new())?;
     let mut game = Application::new(asset_dir, InWorld, game_data)?;
     game.run();
