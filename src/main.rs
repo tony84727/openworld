@@ -11,11 +11,13 @@ use amethyst::{
 };
 use winit::MouseButton;
 
-use crate::physics::{ForceTag, RigidBody};
+use crate::physics::{PlayerTag, RigidBody};
 use crate::prefab::ScenePrefabData;
+use crate::terra::RandomCubeTerraDesc;
 
 mod physics;
 mod prefab;
+mod terra;
 
 struct InWorld;
 
@@ -29,7 +31,7 @@ impl SimpleState for InWorld {
             .with(RigidBody { size: 2.0 })
             .with(Transform::default())
             .with(camera)
-            .with(ForceTag)
+            .with(PlayerTag)
             .build();
         let handle = world.exec(|loader: PrefabLoader<'_, ScenePrefabData>| {
             loader.load("prefab/scene.ron", RonFormat, ())
@@ -104,7 +106,8 @@ fn main() -> amethyst::Result<()> {
         )?
         .with(physics::PhysicsWorldSystem, "", &[])
         .with(physics::NPhysicsSystem, "physics", &[])
-        .with(physics::PlayerForceSystem, "", &[])
+        .with(physics::PlayerInputSystem, "", &[])
+        .with_system_desc(RandomCubeTerraDesc, "", &["physics"])
         .with_bundle(TransformBundle::new())?;
     let mut game = Application::new(asset_dir, InWorld, game_data)?;
     game.run();

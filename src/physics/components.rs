@@ -20,19 +20,38 @@ impl Component for RigidBody {
     type Storage = DenseVecStorage<Self>;
 }
 
-pub struct RigidBodyState {
+#[derive(Clone, PrefabData, Serialize, Deserialize)]
+#[prefab(Component)]
+#[serde(deny_unknown_fields)]
+// a rigidbody component with ground state(ignore forces. nearly infinite mass)
+pub struct Ground {
+    pub size: f32,
+}
+
+impl Component for Ground {
+    type Storage = DenseVecStorage<Self>;
+}
+
+pub struct PhysicsState {
     pub(crate) body: DefaultBodyHandle,
     //    pub(crate) collider: DefaultColliderHandle,
 }
 
-impl Component for RigidBodyState {
+impl Component for PhysicsState {
     type Storage = DenseVecStorage<Self>;
+}
+
+#[derive(Default)]
+pub struct DynamicPhysicsObject;
+
+impl Component for DynamicPhysicsObject {
+    type Storage = NullStorage<Self>;
 }
 
 // for tagging the objects the player is controlling.
 #[derive(Default)]
-pub struct ForceTag;
+pub struct PlayerTag;
 
-impl Component for ForceTag {
+impl Component for PlayerTag {
     type Storage = NullStorage<Self>;
 }
