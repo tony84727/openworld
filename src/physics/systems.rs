@@ -1,3 +1,5 @@
+use std::ops::{Deref, DerefMut};
+
 use amethyst::{
     core::{math::Vector3, Transform},
     ecs::{Entities, Join, Read, ReadStorage, System, Write, WriteStorage},
@@ -6,7 +8,7 @@ use amethyst::{
 use nalgebra::Isometry3;
 use ncollide3d::shape::{Cuboid, ShapeHandle};
 use nphysics3d::algebra::{Force3, ForceType};
-use nphysics3d::object::Body;
+use nphysics3d::object::{Body, BodyStatus, DefaultBodyHandle};
 use nphysics3d::{
     force_generator::DefaultForceGeneratorSet,
     joint::DefaultJointConstraintSet,
@@ -14,7 +16,7 @@ use nphysics3d::{
     world::{DefaultGeometricalWorld, DefaultMechanicalWorld},
 };
 
-use super::components::{ForceTag, RigidBody, RigidBodyState};
+use super::components::{ForceTag, Ground, PhysicsState, RigidBody};
 
 pub struct PhysicsWorld {
     mechanical: DefaultMechanicalWorld<f64>,
@@ -60,42 +62,87 @@ impl<'a> System<'a> for PhysicsWorldSystem {
     }
 }
 
+struct BodyCreator<'a> {
+    bodies: &'a mut DefaultBodySet<f64>,
+    colliders: &'a mut DefaultColliderSet<f64>,
+    collider_size: f64,
+    body_status: BodyStatus,
+}
+
+impl<'a> BodyCreator<'a> {
+    fn new(
+        bodies: &'a mut DefaultBodySet<f64>,
+        colliders: &'a mut DefaultColliderSet<f64>,
+    ) -> Self {
+        BodyCreator {
+            bodies,
+            colliders,
+            collider_size: 1.0,
+            body_status: BodyStatus::Dynamic,
+        }
+    }
+    fn set_body_status(&mut self, status: BodyStatus) -> &mut Self {
+        self.body_status = status;
+        self
+    }
+
+    fn create(&mut self, collider_size: f64, transform: &Transform) -> DefaultBodyHandle {
+        let transform_isometry = transform.isometry();
+        let body = RigidBodyDesc::new()
+            .position(nalgebra::convert::<Isometry3<f32>, Isometry3<f64>>(
+                *transform_isometry,
+            ))
+            .status(self.body_status)
+            .build();
+        let shape_handle = ShapeHandle::new(Cuboid::new(Vector3::from([
+            collider_size,
+            collider_size,
+            collider_size,
+        ])));
+        let body_handle = self.bodies.insert(body);
+        let collider = ColliderDesc::new(shape_handle)
+            .density(1.0)
+            .build(BodyPartHandle(body_handle, 0));
+        let _collider_handle = self.colliders.insert(collider);
+        body_handle
+    }
+}
+
 pub struct NPhysicsSystem;
 
 impl<'a> System<'a> for NPhysicsSystem {
     type SystemData = (
         Entities<'a>,
         ReadStorage<'a, RigidBody>,
-        WriteStorage<'a, RigidBodyState>,
+        ReadStorage<'a, Ground>,
+        WriteStorage<'a, PhysicsState>,
         WriteStorage<'a, Transform>,
         Write<'a, PhysicsWorld>,
     );
 
     fn run(
         &mut self,
-        (entities, rigidbody, mut rigidstate, mut transform, mut world): Self::SystemData,
+        (entities, rigidbody, ground, mut rigidstate, mut transform, mut world): Self::SystemData,
     ) {
         {
+            let mut world = world.deref_mut();
+            let mut creator = BodyCreator::new(&mut world.bodies, &mut world.colliders);
             let mut to_insert = Vec::new();
             for (e, r, _, transform) in (&entities, &rigidbody, !&rigidstate, &transform).join() {
-                let transform_isometry = transform.isometry();
-                let body = RigidBodyDesc::new()
-                    .position(nalgebra::convert::<Isometry3<f32>, Isometry3<f64>>(
-                        *transform_isometry,
-                    ))
-                    .build();
-                let size = r.size as f64;
-                let shape_handle = ShapeHandle::new(Cuboid::new(Vector3::from([size, size, size])));
-                let body_handle = world.bodies.insert(body);
-                let collider = ColliderDesc::new(shape_handle)
-                    .density(1.0)
-                    .build(BodyPartHandle(body_handle, 0));
-                let _collider_handle = world.colliders.insert(collider);
                 to_insert.push((
                     e,
-                    RigidBodyState {
-                        body: body_handle,
-                        //                        collider: collider_handle,
+                    PhysicsState {
+                        body: creator.create(r.size as f64, &transform),
+                    },
+                ));
+            }
+            // create ground bodies
+            creator.set_body_status(BodyStatus::Static);
+            for (e, g, _, t) in (&entities, &ground, !&rigidstate, &transform).join() {
+                to_insert.push((
+                    e,
+                    PhysicsState {
+                        body: creator.create(g.size as f64, t),
                     },
                 ));
             }
@@ -118,7 +165,7 @@ pub struct PlayerForceSystem;
 impl<'a> System<'a> for PlayerForceSystem {
     type SystemData = (
         ReadStorage<'a, ForceTag>,
-        ReadStorage<'a, RigidBodyState>,
+        ReadStorage<'a, PhysicsState>,
         Write<'a, PhysicsWorld>,
         Read<'a, InputHandler<StringBindings>>,
     );

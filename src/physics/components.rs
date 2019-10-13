@@ -20,12 +20,24 @@ impl Component for RigidBody {
     type Storage = DenseVecStorage<Self>;
 }
 
-pub struct RigidBodyState {
+#[derive(Clone, PrefabData, Serialize, Deserialize)]
+#[prefab(Component)]
+#[serde(deny_unknown_fields)]
+// a rigidbody component with ground state(ignore forces. nearly infinite mass)
+pub struct Ground {
+    pub size: f32,
+}
+
+impl Component for Ground {
+    type Storage = DenseVecStorage<Self>;
+}
+
+pub struct PhysicsState {
     pub(crate) body: DefaultBodyHandle,
     //    pub(crate) collider: DefaultColliderHandle,
 }
 
-impl Component for RigidBodyState {
+impl Component for PhysicsState {
     type Storage = DenseVecStorage<Self>;
 }
 
