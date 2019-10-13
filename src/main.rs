@@ -16,6 +16,7 @@ use crate::prefab::ScenePrefabData;
 
 mod physics;
 mod prefab;
+mod terra;
 
 struct InWorld;
 
