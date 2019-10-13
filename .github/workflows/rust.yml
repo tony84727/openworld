@@ -1,0 +1,17 @@
+name: Rust
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: install libraries
+      run: sudo apt-get -y install libasound2-dev python3 libfreetype6-dev libexpat1-dev libx11-dev libx11-xcb-dev libxcb-xfixes0-dev libxcb-shape0-dev libxcb-render0-dev
+    - name: Build
+      run: cargo build --verbose --features vulkan
+#    - name: Run tests
+#      run: cargo test --verbose
