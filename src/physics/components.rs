@@ -41,6 +41,13 @@ impl Component for PhysicsState {
     type Storage = DenseVecStorage<Self>;
 }
 
+#[derive(Default)]
+pub struct DynamicPhysicsObject;
+
+impl Component for DynamicPhysicsObject {
+    type Storage = NullStorage<Self>;
+}
+
 // for tagging the objects the player is controlling.
 #[derive(Default)]
 pub struct ForceTag;

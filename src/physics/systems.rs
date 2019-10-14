@@ -16,6 +16,8 @@ use nphysics3d::{
     world::{DefaultGeometricalWorld, DefaultMechanicalWorld},
 };
 
+use crate::physics::DynamicPhysicsObject;
+
 use super::components::{ForceTag, Ground, PhysicsState, RigidBody};
 
 pub struct PhysicsWorld {
@@ -118,11 +120,12 @@ impl<'a> System<'a> for NPhysicsSystem {
         WriteStorage<'a, PhysicsState>,
         WriteStorage<'a, Transform>,
         Write<'a, PhysicsWorld>,
+        WriteStorage<'a, DynamicPhysicsObject>,
     );
 
     fn run(
         &mut self,
-        (entities, rigidbody, ground, mut rigidstate, mut transform, mut world): Self::SystemData,
+        (entities, rigidbody, ground, mut rigidstate, mut transform, mut world, mut dynamic): Self::SystemData,
     ) {
         {
             let mut world = world.deref_mut();
@@ -135,6 +138,7 @@ impl<'a> System<'a> for NPhysicsSystem {
                         body: creator.create(r.size as f64, &transform),
                     },
                 ));
+                dynamic.insert(e, DynamicPhysicsObject);
             }
             // create ground bodies
             creator.set_body_status(BodyStatus::Static);
@@ -150,7 +154,7 @@ impl<'a> System<'a> for NPhysicsSystem {
                 rigidstate.insert(e, state).unwrap();
             }
         }
-        for (t, state) in (&mut transform, &rigidstate).join() {
+        for (t, state, _) in (&mut transform, &rigidstate, &dynamic).join() {
             if let Some(body) = world.bodies.rigid_body(state.body) {
                 let iso = body.position();
                 t.set_translation(iso.translation.vector);

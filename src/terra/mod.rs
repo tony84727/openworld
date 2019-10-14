@@ -3,9 +3,10 @@ use amethyst::{
     core::Transform,
     ecs::{Entities, EntityBuilder, Read, ReadExpect, ReadStorage, System, WriteStorage},
     renderer::{
+        formats::{mtl::MaterialPrefab, GraphicsPrefab},
         rendy::mesh::PosTex,
         shape::{Shape, ShapePrefab},
-        Mesh, MeshPrefab,
+        Material, Mesh, MeshPrefab,
     },
 };
 use nalgebra::Vector3;
@@ -14,28 +15,23 @@ use serde::export::PhantomData;
 use crate::physics::Ground;
 
 pub struct RandomCubeTerra {
-    floor_handle: Option<Handle<Mesh>>,
+    floor_prefab: GraphicsPrefab<Vec<PosTex>>,
     activated: bool,
 }
 
 impl RandomCubeTerra {
     pub fn new() -> Self {
         RandomCubeTerra {
-            floor_handle: None,
             activated: false,
-        }
-    }
-    fn load_floor(&mut self, loader: &Loader, storage: &AssetStorage<Mesh>) {
-        if self.floor_handle.is_none() {
-            self.floor_handle = Some(
-                loader.load_from_data(
-                    Shape::Cube
-                        .generate::<Vec<PosTex>>(Some((1.0, 0.2, 1.0)))
-                        .into(),
-                    (),
-                    storage,
-                ),
-            );
+            floor_prefab: GraphicsPrefab {
+                material: MaterialPrefab::default(),
+                mesh: MeshPrefab::Shape(ShapePrefab {
+                    handle: None,
+                    shape_scale: Some((1.0, 0.5, 1.0)),
+                    _m: PhantomData::default(),
+                    shape: Shape::Cube,
+                }),
+            },
         }
     }
 }
@@ -45,19 +41,25 @@ impl<'a> System<'a> for RandomCubeTerra {
         Entities<'a>,
         WriteStorage<'a, Ground>,
         WriteStorage<'a, Transform>,
-        WriteStorage<'a, Handle<Mesh>>,
-        ReadExpect<'a, Loader>,
-        Read<'a, AssetStorage<Mesh>>,
     );
 
     fn run(
         &mut self,
-        (entities, mut ground, mut transform, mut meshes, loader, mesh_storage): Self::SystemData,
+        (
+            entities,
+            mut ground,
+            mut transform,
+            mut meshes,
+            mut materials,
+            loader,
+            mesh_storage,
+            material_storage,
+        ): Self::SystemData,
     ) {
         if self.activated {
             return;
         }
-        self.load_floor(&*loader, &*mesh_storage);
+        self.load_floor(&*loader, &*mesh_storage, &*material_storage);
         for x in 0..100 {
             for z in 0..100 {
                 let entity = entities
