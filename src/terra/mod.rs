@@ -1,37 +1,35 @@
+use amethyst::prelude::{SystemDesc, World};
 use amethyst::{
-    assets::{PrefabData, ProgressCounter},
+    assets::{Handle, Prefab, PrefabLoader, RonFormat},
     core::Transform,
-    ecs::{Entities, ReadExpect, ReadStorage, System, WriteStorage},
-    renderer::{
-        formats::{mtl::MaterialPrefab, GraphicsPrefab},
-        rendy::mesh::PosTex,
-        shape::{Shape, ShapePrefab},
-        Material, Mesh, MeshPrefab,
-    },
+    ecs::{Entities, System, WriteStorage},
 };
-use nalgebra::Vector3;
-use serde::export::PhantomData;
 
 use crate::physics::Ground;
+use crate::prefab::ScenePrefabData;
 
 pub struct RandomCubeTerra {
-    mesh_prefab: MeshPrefab<Vec<PosTex>>,
-    material_prefab: MaterialPrefab,
     activated: bool,
+    floor_prefab: Handle<Prefab<ScenePrefabData>>,
 }
 
 impl RandomCubeTerra {
-    pub fn new() -> Self {
+    pub fn new(floor_prefab: Handle<Prefab<ScenePrefabData>>) -> Self {
         RandomCubeTerra {
             activated: false,
-            mesh_prefab: MeshPrefab::Shape(ShapePrefab {
-                handle: None,
-                shape_scale: Some((1.0, 0.5, 1.0)),
-                _m: PhantomData::default(),
-                shape: Shape::Cube,
-            }),
-            material_prefab: Default::default(),
+            floor_prefab,
         }
+    }
+}
+
+pub struct RandomCubeTerraDesc;
+
+impl SystemDesc<'_, '_, RandomCubeTerra> for RandomCubeTerraDesc {
+    fn build(self, world: &mut World) -> RandomCubeTerra {
+        let handle = world.exec(|loader: PrefabLoader<ScenePrefabData>| {
+            loader.load("prefab/floor.ron", RonFormat, ())
+        });
+        RandomCubeTerra::new(handle)
     }
 }
 
@@ -40,37 +38,23 @@ impl<'a> System<'a> for RandomCubeTerra {
         Entities<'a>,
         WriteStorage<'a, Ground>,
         WriteStorage<'a, Transform>,
-        <MaterialPrefab as PrefabData<'a>>::SystemData,
-        <MeshPrefab<Vec<PosTex>> as PrefabData<'a>>::SystemData,
+        WriteStorage<'a, Handle<Prefab<ScenePrefabData>>>,
     );
 
-    fn run(
-        &mut self,
-        (
-            entities,
-            mut ground,
-            mut transform,
-            mut material_data,
-            mut mesh_data,
-        ): Self::SystemData,
-    ) {
+    fn run(&mut self, (entities, mut ground, mut transform, mut prefab_store): Self::SystemData) {
         if self.activated {
             return;
         }
-        self.material_prefab.load_sub_assets(&mut ProgressCounter::new(), &mut material_data);
-        self.mesh_prefab.load_sub_assets(&mut ProgressCounter::new(),&mut mesh_data);
-        for x in 0..100 {
-            for z in 0..100 {
-                let entity = entities
+        for x in -50..50 {
+            for z in -50..50 {
+                let mut t = Transform::default();
+                t.set_translation_xyz(x as f32, 2.0, z as f32);
+                entities
                     .build_entity()
                     .with(Ground { size: 1.0 }, &mut ground)
-                    .with(
-                        Transform::from(Vector3::from([x as f32, -10.0, z as f32])),
-                        &mut transform,
-                    )
+                    .with(t, &mut transform)
+                    .with(self.floor_prefab.clone(), &mut prefab_store)
                     .build();
-                self.material_prefab.add_to_entity(entity, &mut material_data, &[], &[]);
-                self.mesh_prefab.add_to_entity(entity, &mut mesh_data, &[], &[]);
             }
         }
         self.activated = true;

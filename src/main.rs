@@ -13,6 +13,7 @@ use winit::MouseButton;
 
 use crate::physics::{ForceTag, RigidBody};
 use crate::prefab::ScenePrefabData;
+use crate::terra::RandomCubeTerraDesc;
 
 mod physics;
 mod prefab;
@@ -106,7 +107,7 @@ fn main() -> amethyst::Result<()> {
         .with(physics::PhysicsWorldSystem, "", &[])
         .with(physics::NPhysicsSystem, "physics", &[])
         .with(physics::PlayerForceSystem, "", &[])
-        .with(terra::RandomCubeTerra::new(), "", &["physics"])
+        .with_system_desc(RandomCubeTerraDesc, "", &["physics"])
         .with_bundle(TransformBundle::new())?;
     let mut game = Application::new(asset_dir, InWorld, game_data)?;
     game.run();

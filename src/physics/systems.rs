@@ -1,4 +1,4 @@
-use std::ops::{Deref, DerefMut};
+use std::ops::DerefMut;
 
 use amethyst::{
     core::{math::Vector3, Transform},
@@ -67,7 +67,6 @@ impl<'a> System<'a> for PhysicsWorldSystem {
 struct BodyCreator<'a> {
     bodies: &'a mut DefaultBodySet<f64>,
     colliders: &'a mut DefaultColliderSet<f64>,
-    collider_size: f64,
     body_status: BodyStatus,
 }
 
@@ -79,7 +78,6 @@ impl<'a> BodyCreator<'a> {
         BodyCreator {
             bodies,
             colliders,
-            collider_size: 1.0,
             body_status: BodyStatus::Dynamic,
         }
     }
@@ -128,7 +126,7 @@ impl<'a> System<'a> for NPhysicsSystem {
         (entities, rigidbody, ground, mut rigidstate, mut transform, mut world, mut dynamic): Self::SystemData,
     ) {
         {
-            let mut world = world.deref_mut();
+            let world = world.deref_mut();
             let mut creator = BodyCreator::new(&mut world.bodies, &mut world.colliders);
             let mut to_insert = Vec::new();
             for (e, r, _, transform) in (&entities, &rigidbody, !&rigidstate, &transform).join() {
@@ -138,7 +136,7 @@ impl<'a> System<'a> for NPhysicsSystem {
                         body: creator.create(r.size as f64, &transform),
                     },
                 ));
-                dynamic.insert(e, DynamicPhysicsObject);
+                dynamic.insert(e, DynamicPhysicsObject).unwrap();
             }
             // create ground bodies
             creator.set_body_status(BodyStatus::Static);
