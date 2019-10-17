@@ -18,7 +18,7 @@ use nphysics3d::{
 
 use crate::physics::DynamicPhysicsObject;
 
-use super::components::{ForceTag, Ground, PhysicsState, RigidBody};
+use super::components::{PlayerTag, Ground, PhysicsState, RigidBody};
 
 pub struct PhysicsWorld {
     mechanical: DefaultMechanicalWorld<f64>,
@@ -162,37 +162,22 @@ impl<'a> System<'a> for NPhysicsSystem {
     }
 }
 
-pub struct PlayerForceSystem;
+pub struct PlayerInputSystem;
 
-impl<'a> System<'a> for PlayerForceSystem {
+impl<'a> System<'a> for PlayerInputSystem {
     type SystemData = (
-        ReadStorage<'a, ForceTag>,
+        ReadStorage<'a, PlayerTag>,
         ReadStorage<'a, PhysicsState>,
         Write<'a, PhysicsWorld>,
         Read<'a, InputHandler<StringBindings>>,
     );
 
     fn run(&mut self, (tagged, state, mut world, handler): Self::SystemData) {
-        let force;
-        {
-            if let Some(x_axis) = handler.axis_value("horizontal") {
-                if let Some(y_axis) = handler.axis_value("vertical") {
-                    force = Some(Force3::new(
-                        Vector3::from([x_axis as f64, 0.0, y_axis as f64]),
-                        Vector3::from([0.0, 0.0, 0.0]),
-                    ))
-                } else {
-                    force = None;
-                }
-            } else {
-                force = None;
-            }
-        }
-
-        if let Some(force) = force {
-            for (_, s) in (&tagged, &state).join() {
-                if let Some(body) = world.bodies.rigid_body_mut(s.body) {
-                    body.apply_force(0, &force, ForceType::VelocityChange, false)
+        if let Some(x_aixs) = handler.axis_value("horizontal") {
+            if let Some(y_axis) = handler.axis_value("vertical") {
+                for (_,state) in (&tagged, &state).join() {
+                    let mut body = world.bodies.get_mut(state.body).unwrap();
+                    body.set_status(BodyStatus::Kinematic);
                 }
             }
         }

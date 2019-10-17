@@ -50,8 +50,8 @@ impl Component for DynamicPhysicsObject {
 
 // for tagging the objects the player is controlling.
 #[derive(Default)]
-pub struct ForceTag;
+pub struct PlayerTag;
 
-impl Component for ForceTag {
+impl Component for PlayerTag {
     type Storage = NullStorage<Self>;
 }
