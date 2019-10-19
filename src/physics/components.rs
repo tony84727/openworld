@@ -16,6 +16,7 @@ pub struct RigidBody {
     pub size: f32,
 }
 
+// RigidBody tells physical system the setting about rigid body.
 impl Component for RigidBody {
     type Storage = DenseVecStorage<Self>;
 }
@@ -23,7 +24,7 @@ impl Component for RigidBody {
 #[derive(Clone, PrefabData, Serialize, Deserialize)]
 #[prefab(Component)]
 #[serde(deny_unknown_fields)]
-// a rigidbody component with ground state(ignore forces. nearly infinite mass)
+/// a rigidbody component with ground state(ignore forces. nearly infinite mass)
 pub struct Ground {
     pub size: f32,
 }
@@ -48,7 +49,7 @@ impl Component for DynamicPhysicsObject {
     type Storage = NullStorage<Self>;
 }
 
-// for tagging the objects the player is controlling.
+/// for tagging the objects the player is controlling.
 #[derive(Default)]
 pub struct PlayerTag;
 

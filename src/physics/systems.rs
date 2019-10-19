@@ -1,24 +1,35 @@
 use std::ops::DerefMut;
 
 use amethyst::{
-    core::{math::Vector3, Transform},
-    ecs::{Entities, Join, Read, ReadStorage, System, Write, WriteStorage},
+    controls::{HideCursor, WindowFocus},
+    core::{
+        math::Vector3,
+        shrev::{EventChannel, ReaderId},
+        SystemDesc, Transform,
+    },
+    ecs::{Entities, Join, Read, ReadStorage, System, World, Write, WriteStorage},
     input::{InputHandler, StringBindings},
 };
-use nalgebra::Isometry3;
+use nalgebra::{Isometry3, UnitQuaternion};
 use ncollide3d::shape::{Cuboid, ShapeHandle};
-use nphysics3d::object::{BodyStatus, DefaultBodyHandle};
+use nphysics3d::algebra::{Force3, ForceType};
+use nphysics3d::object::{Body, BodyStatus, DefaultBodyHandle};
 use nphysics3d::{
     force_generator::DefaultForceGeneratorSet,
     joint::DefaultJointConstraintSet,
     object::{BodyPartHandle, ColliderDesc, DefaultBodySet, DefaultColliderSet, RigidBodyDesc},
     world::{DefaultGeometricalWorld, DefaultMechanicalWorld},
 };
+use winit::{DeviceEvent, Event};
 
 use crate::physics::DynamicPhysicsObject;
 
 use super::components::{Ground, PhysicsState, PlayerTag, RigidBody};
+use amethyst::prelude::WorldExt;
 
+/**
+    PhysicsWorld resource holds states of nphysics
+*/
 pub struct PhysicsWorld {
     mechanical: DefaultMechanicalWorld<f64>,
     geometrical: DefaultGeometricalWorld<f64>,
@@ -53,6 +64,7 @@ impl Default for PhysicsWorld {
     }
 }
 
+/// PhysicsWorldSystem is responsible to maintain PhysicsWorld state.
 pub struct PhysicsWorldSystem;
 
 impl<'a> System<'a> for PhysicsWorldSystem {
@@ -67,6 +79,7 @@ struct BodyCreator<'a> {
     bodies: &'a mut DefaultBodySet<f64>,
     colliders: &'a mut DefaultColliderSet<f64>,
     body_status: BodyStatus,
+    no_gravity: bool,
 }
 
 impl<'a> BodyCreator<'a> {
@@ -78,10 +91,16 @@ impl<'a> BodyCreator<'a> {
             bodies,
             colliders,
             body_status: BodyStatus::Dynamic,
+            no_gravity: false,
         }
     }
     fn set_body_status(&mut self, status: BodyStatus) -> &mut Self {
         self.body_status = status;
+        self
+    }
+
+    fn set_no_gravity(&mut self) -> &mut Self {
+        self.no_gravity = true;
         self
     }
 
@@ -92,11 +111,12 @@ impl<'a> BodyCreator<'a> {
                 *transform_isometry,
             ))
             .status(self.body_status)
+            .gravity_enabled(!self.no_gravity)
             .build();
         let shape_handle = ShapeHandle::new(Cuboid::new(Vector3::from([
-            collider_size,
-            collider_size,
-            collider_size,
+            collider_size / 2.,
+            collider_size / 2.,
+            collider_size / 2.,
         ])));
         let body_handle = self.bodies.insert(body);
         let collider = ColliderDesc::new(shape_handle)
@@ -107,6 +127,7 @@ impl<'a> BodyCreator<'a> {
     }
 }
 
+/// NPhysicsSystem create corresponding body for a entity with RigidBody.
 pub struct NPhysicsSystem;
 
 impl<'a> System<'a> for NPhysicsSystem {
@@ -122,13 +143,13 @@ impl<'a> System<'a> for NPhysicsSystem {
 
     fn run(
         &mut self,
-        (entities, rigidbody, ground, mut rigidstate, mut transform, mut world, mut dynamic): Self::SystemData,
+        (entities, rigidbody, ground, mut phystate, mut transform, mut world, mut dynamic): Self::SystemData,
     ) {
         {
             let world = world.deref_mut();
             let mut creator = BodyCreator::new(&mut world.bodies, &mut world.colliders);
             let mut to_insert = Vec::new();
-            for (e, r, _, transform) in (&entities, &rigidbody, !&rigidstate, &transform).join() {
+            for (e, r, _, transform) in (&entities, &rigidbody, !&phystate, &transform).join() {
                 to_insert.push((
                     e,
                     PhysicsState {
@@ -138,8 +159,8 @@ impl<'a> System<'a> for NPhysicsSystem {
                 dynamic.insert(e, DynamicPhysicsObject).unwrap();
             }
             // create ground bodies
-            creator.set_body_status(BodyStatus::Static);
-            for (e, g, _, t) in (&entities, &ground, !&rigidstate, &transform).join() {
+            creator.set_body_status(BodyStatus::Static).set_no_gravity();
+            for (e, g, _, t) in (&entities, &ground, !&phystate, &transform).join() {
                 to_insert.push((
                     e,
                     PhysicsState {
@@ -148,15 +169,66 @@ impl<'a> System<'a> for NPhysicsSystem {
                 ));
             }
             for (e, state) in to_insert {
-                rigidstate.insert(e, state).unwrap();
+                phystate.insert(e, state).unwrap();
             }
         }
-        for (t, state, _) in (&mut transform, &rigidstate, &dynamic).join() {
+        for (t, state, _) in (&mut transform, &phystate, &dynamic).join() {
             if let Some(body) = world.bodies.rigid_body(state.body) {
                 let iso = body.position();
                 t.set_translation(iso.translation.vector);
                 t.set_rotation(iso.rotation);
             }
+        }
+    }
+}
+
+pub struct PlayerRotateSystem {
+    event_reader: ReaderId<Event>,
+}
+
+impl<'a> System<'a> for PlayerRotateSystem {
+    type SystemData = (
+        Read<'a, EventChannel<Event>>,
+        Read<'a, WindowFocus>,
+        Read<'a, HideCursor>,
+        ReadStorage<'a, PlayerTag>,
+        ReadStorage<'a, PhysicsState>,
+        Write<'a, PhysicsWorld>,
+    );
+
+    fn run(&mut self, (events, focus, hide, tag, state, mut world): Self::SystemData) {
+        for event in events.read(&mut self.event_reader) {
+            if focus.is_focused && hide.hide {
+                if let Event::DeviceEvent { ref event, .. } = *event {
+                    if let DeviceEvent::MouseMotion { delta: (x, y) } = event {
+                        for (_, state) in (&tag, &state).join() {
+                            let body = world.bodies.rigid_body_mut(state.body).unwrap();
+                            let mut new_position = body.position().clone();
+                            new_position.append_rotation_mut(&UnitQuaternion::from_axis_angle(
+                                &Vector3::x_axis(),
+                                *y * 0.1,
+                            ));
+                            new_position.append_rotation_mut(&UnitQuaternion::from_axis_angle(
+                                &Vector3::y_axis(),
+                                *x * 0.1,
+                            ));
+                            body.set_position(new_position);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub struct PlayerRotateSystemDesc;
+
+impl SystemDesc<'_, '_, PlayerRotateSystem> for PlayerRotateSystemDesc {
+    fn build(self, world: &mut World) -> PlayerRotateSystem {
+        let mut channel = world.write_resource::<EventChannel<Event>>();
+        let reader_id = channel.register_reader();
+        PlayerRotateSystem {
+            event_reader: reader_id,
         }
     }
 }
@@ -172,11 +244,28 @@ impl<'a> System<'a> for PlayerInputSystem {
     );
 
     fn run(&mut self, (tagged, state, mut world, handler): Self::SystemData) {
-        if let Some(x_aixs) = handler.axis_value("horizontal") {
-            if let Some(y_axis) = handler.axis_value("vertical") {
-                for (_, state) in (&tagged, &state).join() {
-                    let mut body = world.bodies.get_mut(state.body).unwrap();
-                    body.set_status(BodyStatus::Kinematic);
+        let force;
+        {
+            if let Some(x_axis) = handler.axis_value("horizontal") {
+                if let Some(y_axis) = handler.axis_value("vertical") {
+                    force = Some(Force3::new(
+                        Vector3::from([x_axis as f64, 0.0, y_axis as f64]),
+                        Vector3::from([0.0, 0.0, 0.0]),
+                    ))
+                } else {
+                    force = None;
+                }
+            } else {
+                force = None;
+            }
+        }
+
+        if let Some(force) = force {
+            for (_, s) in (&tagged, &state).join() {
+                if let Some(body) = world.bodies.rigid_body_mut(s.body) {
+                    body.set_linear_damping(0.5);
+                    body.set_angular_damping(0.5);
+                    body.apply_force(0, &force, ForceType::VelocityChange, true);
                 }
             }
         }

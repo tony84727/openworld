@@ -1,6 +1,6 @@
 use amethyst::{
     assets::{PrefabLoader, PrefabLoaderSystemDesc, RonFormat},
-    controls::HideCursor,
+    controls::{CursorHideSystem, HideCursor, MouseFocusUpdateSystemDesc},
     core::transform::{Transform, TransformBundle},
     input::{is_key_down, is_mouse_button_down, InputBundle, StringBindings, VirtualKeyCode},
     prelude::*,
@@ -27,11 +27,11 @@ impl SimpleState for InWorld {
         let camera = Camera::standard_3d(1024.0, 768.0);
         world
             .create_entity()
-            .named("Camera")
+            .named("player")
             .with(RigidBody { size: 2.0 })
             .with(Transform::default())
-            .with(camera)
             .with(PlayerTag)
+            .with(camera)
             .build();
         let handle = world.exec(|loader: PrefabLoader<'_, ScenePrefabData>| {
             loader.load("prefab/scene.ron", RonFormat, ())
@@ -101,12 +101,15 @@ fn main() -> amethyst::Result<()> {
                     RenderToWindow::from_config_path(config_dir.join("display.ron"))
                         .with_clear([0.0, 0.0, 0.0, 1.0]),
                 )
-                .with_plugin(RenderSkybox::default())
+                //                .with_plugin(RenderSkybox::default())
                 .with_plugin(RenderFlat3D::default()),
         )?
+        .with_system_desc(MouseFocusUpdateSystemDesc, "", &[])
+        .with(CursorHideSystem::default(), "", &[])
         .with(physics::PhysicsWorldSystem, "", &[])
         .with(physics::NPhysicsSystem, "physics", &[])
         .with(physics::PlayerInputSystem, "", &[])
+        .with_system_desc(physics::PlayerRotateSystemDesc, "", &[])
         .with_system_desc(RandomCubeTerraDesc, "", &["physics"])
         .with_bundle(TransformBundle::new())?;
     let mut game = Application::new(asset_dir, InWorld, game_data)?;
