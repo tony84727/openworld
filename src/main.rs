@@ -4,16 +4,14 @@ use amethyst::{
     core::transform::{Transform, TransformBundle},
     input::{is_key_down, is_mouse_button_down, InputBundle, StringBindings, VirtualKeyCode},
     prelude::*,
-    renderer::{
-        types::DefaultBackend, Camera, RenderFlat3D, RenderSkybox, RenderToWindow, RenderingBundle,
-    },
+    renderer::{types::DefaultBackend, Camera, RenderFlat3D, RenderToWindow, RenderingBundle},
     utils::application_root_dir,
 };
 use winit::MouseButton;
 
 use crate::physics::{PlayerTag, RigidBody};
 use crate::prefab::ScenePrefabData;
-use crate::terra::RandomCubeTerraDesc;
+use crate::terra::{CubeTerraSystemDesc, FlatHeightGenerator};
 
 mod physics;
 mod prefab;
@@ -101,7 +99,6 @@ fn main() -> amethyst::Result<()> {
                     RenderToWindow::from_config_path(config_dir.join("display.ron"))
                         .with_clear([0.0, 0.0, 0.0, 1.0]),
                 )
-                //                .with_plugin(RenderSkybox::default())
                 .with_plugin(RenderFlat3D::default()),
         )?
         .with_system_desc(MouseFocusUpdateSystemDesc, "", &[])
@@ -110,7 +107,11 @@ fn main() -> amethyst::Result<()> {
         .with(physics::NPhysicsSystem, "physics", &[])
         .with(physics::PlayerInputSystem, "", &[])
         .with_system_desc(physics::PlayerRotateSystemDesc, "", &[])
-        .with_system_desc(RandomCubeTerraDesc, "", &["physics"])
+        .with_system_desc(
+            CubeTerraSystemDesc::new(FlatHeightGenerator::new(1.)),
+            "",
+            &[],
+        )
         .with_bundle(TransformBundle::new())?;
     let mut game = Application::new(asset_dir, InWorld, game_data)?;
     game.run();
